@@ -1,0 +1,11 @@
+flask==3.0.3
+flask-cors==4.0.1
+PyJWT==2.8.0
+pandas==2.2.2
+openpyxl==3.1.5        # motor para leer .xlsx
+xlrd==2.0.1            # motor para leer .xls
+faiss-cpu==1.8.0
+sentence-transformers==3.0.1
+numpy==1.26.4
+requests==2.32.3
+gunicorn==22.0.0

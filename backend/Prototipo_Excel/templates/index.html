@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Llama3 RAG Interface</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .chat-container { height: calc(100vh - 160px); }
+        body { background-color: #0f172a; } /* Slate 900 */
+    </style>
+</head>
+<body class="text-slate-200 font-sans">
+
+    <div class="max-w-3xl mx-auto flex flex-col h-screen p-4">
+        <header class="py-4 border-b border-slate-700 flex justify-between items-center">
+            <h1 class="text-xl font-semibold tracking-tight text-indigo-400">Llama3 <span class="text-slate-500 text-sm font-normal">+ RAG (Local)</span></h1>
+            <div class="px-2 py-1 bg-slate-800 rounded text-xs text-slate-400">Port 3000</div>
+        </header>
+
+        <div id="chat-box" class="chat-container overflow-y-auto py-6 space-y-6 scrollbar-hide">
+            <div class="flex flex-col gap-2">
+                <div class="text-xs text-slate-500 uppercase tracking-widest ml-1">Sistema</div>
+                <div class="bg-slate-800 p-4 rounded-2xl rounded-tl-none border border-slate-700 max-w-[85%]">
+                    Listo. ¿Qué deseas consultar en tus documentos hoy?
+                </div>
+            </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-700">
+            <form id="chat-form" class="relative flex items-center">
+                <input 
+                    type="text" 
+                    id="user-input"
+                    placeholder="Escribe tu consulta al RAG..."
+                    class="w-full bg-slate-800 border border-slate-700 rounded-xl py-4 pl-5 pr-16 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                >
+                <button 
+                    type="submit"
+                    class="absolute right-3 p-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+        const chatBox = document.getElementById('chat-box');
+
+        function appendMessage(role, text) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'flex flex-col gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300';
+            
+            const isUser = role === 'user';
+            const label = isUser ? 'Tú' : 'Llama3 RAG';
+            const bgColor = isUser ? 'bg-indigo-600/20 border-indigo-500/30 ml-auto text-right items-end' : 'bg-slate-800 border-slate-700 mr-auto';
+            const rounded = isUser ? 'rounded-tr-none' : 'rounded-tl-none';
+
+            msgDiv.innerHTML = `
+                <div class="text-xs text-slate-500 uppercase tracking-widest px-1 ${isUser ? 'text-right' : ''}">${label}</div>
+                <div class="${bgColor} border p-4 rounded-2xl ${rounded} max-w-[90%] whitespace-pre-wrap leading-relaxed">
+                    ${text}
+                </div>
+            `;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            appendMessage('user', message);
+            userInput.value = '';
+
+            try {
+                // Endpoint de tu Docker RAG
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pregunta: message }) // Ajusta la key según tu API
+                });
+
+                const data = await response.json();
+                // Asumiendo que tu RAG devuelve { answer: "..." }
+                appendMessage('assistant', data.respuesta || "No se recibió respuesta del modelo.");
+                
+            } catch (error) {
+                appendMessage('assistant', "Error: No se pudo conectar con el RAG en el puerto 5000. Asegúrate de que el contenedor Docker esté corriendo.");
+                console.error(error);
+            }
+        });
+    </script>
+</body>
+</html>

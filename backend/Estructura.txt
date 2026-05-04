@@ -1,0 +1,26 @@
+proyecto/
+├── app/
+│   ├── __init__.py          ← create_app(), registra blueprints
+│   ├── config.py            ← variables de entorno, rutas, modelo
+│   ├── routes/
+│   │   ├── chat.py          ← POST /chat
+│   │   ├── stats.py         ← GET /resumen
+│   │   ├── upload.py        ← POST /upload
+│   │   └── auth.py          ← POST /login, /register
+│   ├── services/
+│   │   ├── rag_service.py   ← FAISS + embeddings
+│   │   ├── ollama_service.py← llama a Ollama
+│   │   ├── excel_service.py ← carga, resumen estadístico, reconstruye índice
+│   │   └── auth_service.py  ← JWT, hashing de contraseñas
+│   ├── models/
+│   │   ├── user.py
+│   │   └── session.py
+│   └── middleware/
+│       ├── auth_guard.py    ← decorador @require_auth
+│       ├── cors.py          ← CORS para el frontend
+│       └── error_handler.py
+├── uploads/                 ← archivos Excel subidos
+├── run.py                   ← punto de entrada (app = create_app())
+├── Dockerfile
+├── docker-compose.yml
+└── requirements.txt

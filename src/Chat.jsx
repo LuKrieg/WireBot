@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
 import './App.css'
 
 const STORAGE_KEY = 'wirebot-theme'
@@ -13,11 +14,12 @@ function getInitialTheme() {
   return 'dark'
 }
 
-export default function Chat({ onLogout }) {
+export default function Chat({ onLogout, token }) {
   const [theme, setTheme] = useState(getInitialTheme)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const [messages, setMessages] = useState([])
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -28,25 +30,60 @@ export default function Chat({ onLogout }) {
     setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))
   }
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     const text = draft.trim()
     if (!text) return
 
     const myId = `${Date.now()}-me`
     setMessages((current) => [...current, { id: myId, from: 'me', text }])
     setDraft('')
+    setIsLoading(true)
 
-    window.setTimeout(() => {
-      const otherId = `${Date.now()}-other`
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ pregunta: text })
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const otherId = `${Date.now()}-other`
+        setMessages((current) => [
+          ...current,
+          {
+            id: otherId,
+            from: 'other',
+            text: data.respuesta || 'Sin respuesta',
+          },
+        ])
+      } else {
+        const err = await res.json()
+        setMessages((current) => [
+          ...current,
+          {
+            id: `${Date.now()}-err`,
+            from: 'other',
+            text: `**Error**: ${err.error || 'Ocurrió un problema con el servidor.'}`,
+          },
+        ])
+      }
+    } catch (error) {
+      console.error('Chat error:', error)
       setMessages((current) => [
         ...current,
         {
-          id: otherId,
+          id: `${Date.now()}-err`,
           from: 'other',
-          text: 'Recibido. ¿En qué más te puedo ayudar?',
+          text: '**Error de conexión con el backend.** Asegúrate de que el contenedor esté corriendo.',
         },
       ])
-    }, 450)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -127,10 +164,22 @@ export default function Chat({ onLogout }) {
                       : 'chat-bubble chat-bubble--other'
                   }
                 >
-                  {message.text}
+                  {message.from === 'other' ? (
+                    <ReactMarkdown>{message.text}</ReactMarkdown>
+                  ) : (
+                    message.text
+                  )}
                 </div>
               </div>
             ))}
+            {isLoading && (
+              <div className="chat-row chat-row--other">
+                <img src="/logo.png" alt="" aria-hidden="true" className="chat-avatar" />
+                <div className="chat-bubble chat-bubble--other">
+                  <em>Pensando...</em>
+                </div>
+              </div>
+            )}
           </section>
         </div>
       </section>

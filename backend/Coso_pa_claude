@@ -1,0 +1,455 @@
+En mi Backedn.
+
+donde auth.py es:
+
+# app/routes/auth.py
+
+from flask import Blueprint, request, jsonify
+from app.services.auth_service import register_user, login_user
+
+auth_bp = Blueprint("auth", __name__)
+
+
+@auth_bp.route("/register", methods=["POST"])
+def register():
+    data = request.get_json()
+
+    user_code = data.get("code")
+
+    if not user_code:
+        return jsonify({"error": "El código es requerido"}), 400
+
+    try:
+        user = register_user(user_code)
+
+        return jsonify({
+            "message": "Usuario registrado",
+            "user": {
+                "id": user.id,
+                "code": user.code
+            }
+        }), 201
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@auth_bp.route("/login", methods=["POST"])
+def login():
+    data = request.get_json()
+
+    user_code = data.get("code")
+
+    if not user_code:
+        return jsonify({"error": "El código es requerido"}), 400
+
+    try:
+        token = login_user(user_code)
+
+        return jsonify({
+            "message": "Login exitoso",
+            "token": token
+        }), 200
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 401
+
+
+donde chat.py es:
+
+from flask import Blueprint, request, jsonify
+from app.services.rag_service import buscar_contexto
+from app.services.ollama_service import preguntar
+
+chat_bp = Blueprint("chat", __name__)
+
+
+@chat_bp.route("/chat", methods=["POST"])
+def chat():
+    data = request.get_json(silent=True)
+    if not data or not data.get("pregunta"):
+        return jsonify({"error": "Falta el campo 'pregunta'"}), 400
+
+    pregunta = data["pregunta"]
+
+    contexto = buscar_contexto(pregunta)
+    respuesta = preguntar(contexto, pregunta)
+
+    return jsonify({
+        "respuesta": respuesta,
+        "contexto_usado": contexto,
+    })
+
+donde stats.py es:
+
+from flask import Blueprint, jsonify
+from services.excel_service import get_resumen
+
+stats_bp = Blueprint("stats", __name__)
+
+
+@stats_bp.route("/resumen", methods=["GET"])
+def resumen():
+    datos = get_resumen()
+    if not datos:
+        return jsonify({"error": "No hay ningún documento cargado."}), 404
+    return jsonify(datos)
+
+
+y donde upload.py es:
+
+import os
+from flask import Blueprint, request, jsonify, current_app
+from app.services.excel_service import cargar_excel
+from app.services.rag_service import construir_indice
+
+upload_bp = Blueprint("upload", __name__)
+
+
+def _extension_permitida(filename: str) -> bool:
+    allowed = current_app.config["ALLOWED_EXTENSIONS"]
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in allowed
+
+
+@upload_bp.route("/upload", methods=["POST"])
+def upload():
+    if "file" not in request.files:
+        return jsonify({"error": "No se envió ningún archivo."}), 400
+
+    file = request.files["file"]
+
+    if file.filename == "":
+        return jsonify({"error": "El archivo no tiene nombre."}), 400
+
+    if not _extension_permitida(file.filename):
+        return jsonify({"error": "Solo se permiten archivos .xlsx o .xls"}), 400
+
+    # Guarda el archivo en la carpeta de uploads
+    upload_folder = current_app.config["UPLOAD_FOLDER"]
+    os.makedirs(upload_folder, exist_ok=True)
+    dest = os.path.join(upload_folder, "datos.xlsx")
+    file.save(dest)
+
+    # Recarga Excel y reconstruye el índice FAISS
+    try:
+        cargar_excel(dest)
+        construir_indice()
+    except Exception as e:
+        return jsonify({"error": f"Error al procesar el archivo: {str(e)}"}), 500
+
+    return jsonify({"mensaje": "Archivo cargado correctamente.", "path": dest})
+
+
+
+
+
+
+
+
+
+Además, auth_services.py es:
+
+# app/services/auth_service.py
+
+import jwt
+from datetime import datetime, timedelta
+from app.models.user import User
+from app.config import Config
+
+
+def register_user(user_code):
+    # Verificar si ya existe
+    existing = User.find_by_code(user_code)
+    if existing:
+        raise ValueError("El usuario ya existe")
+
+    user = User(code=user_code)
+    user.save()
+
+    return user
+
+
+def login_user(user_code):
+    user = User.find_by_code(user_code)
+
+    if not user:
+        raise ValueError("Usuario no encontrado")
+
+    token = generate_token(user)
+
+    return token
+
+
+def generate_token(user):
+    payload = {
+        "user_id": user.id,
+        "code": user.code,
+        "exp": datetime.utcnow() + timedelta(hours=8)
+    }
+
+    token = jwt.encode(payload, Config.SECRET_KEY, algorithm="HS256")
+
+    return token
+
+
+def decode_token(token):
+    try:
+        payload = jwt.decode(token, Config.SECRET_KEY, algorithms=["HS256"])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise ValueError("Token expirado")
+    except jwt.InvalidTokenError:
+        raise ValueError("Token inválido")
+
+
+
+excel_services.py es:
+
+import pandas as pd
+
+
+# ── Estado interno del servicio ────────────────────────────────────────────────
+# Se inicializa al arrancar la app y se reemplaza cuando se sube un nuevo Excel.
+
+_df: pd.DataFrame = pd.DataFrame()
+_fragmentos: list[str] = []
+_resumen: dict = {}
+
+
+# ── Carga ──────────────────────────────────────────────────────────────────────
+
+def cargar_excel(path: str) -> None:
+    """
+    Carga el archivo Excel en memoria, genera el resumen estadístico
+    y prepara los fragmentos de texto para el índice FAISS.
+    Llamar al inicio de la app y cada vez que se suba un nuevo archivo.
+    """
+    global _df, _fragmentos, _resumen
+
+    _df = pd.read_excel(path)
+    _fragmentos = _df.apply(_fila_a_texto, axis=1).tolist()
+    _resumen = _generar_resumen(_df)
+
+
+# ── Acceso a datos ─────────────────────────────────────────────────────────────
+
+def get_fragmentos() -> list[str]:
+    """Devuelve la lista de fragmentos de texto (una cadena por fila del Excel)."""
+    return _fragmentos
+
+
+def get_resumen() -> dict:
+    """Devuelve el resumen estadístico del documento cargado."""
+    return _resumen
+
+
+def get_dataframe() -> pd.DataFrame:
+    """Devuelve el DataFrame completo por si algún servicio lo necesita."""
+    return _df
+
+
+# ── Lógica interna ─────────────────────────────────────────────────────────────
+
+def _fila_a_texto(row) -> str:
+    """Convierte una fila del DataFrame en una cadena legible: 'col1: val1 | col2: val2'."""
+    return " | ".join([f"{col}: {val}" for col, val in row.items()])
+
+
+def _generar_resumen(df: pd.DataFrame) -> dict:
+    """
+    Genera un resumen estadístico estructurado del DataFrame.
+    Devuelve un dict con:
+      - total_filas
+      - columnas
+      - categoricas: {col: {valor: conteo, ...}}
+      - numericas:   {col: {min, max, suma, promedio}}
+    """
+    resumen = {
+        "total_filas": len(df),
+        "columnas": df.columns.tolist(),
+        "categoricas": {},
+        "numericas": {},
+    }
+
+    for col in df.select_dtypes(include=["object"]).columns:
+        resumen["categoricas"][col] = df[col].value_counts().to_dict()
+
+    for col in df.select_dtypes(include=["number"]).columns:
+        resumen["numericas"][col] = {
+            "min": df[col].min(),
+            "max": df[col].max(),
+            "suma": df[col].sum(),
+            "promedio": round(float(df[col].mean()), 2),
+        }
+
+    return resumen
+
+
+
+ollama_services.py es:
+
+import requests
+
+# ── Configuración ──────────────────────────────────────────────────────────────
+
+OLLAMA_URL = "http://host.docker.internal:11434"
+OLLAMA_MODEL = "llama3"
+
+
+# ── Interfaz pública ───────────────────────────────────────────────────────────
+
+def preguntar(contexto: str, pregunta: str) -> str:
+    """
+    Construye el prompt, llama a Ollama y devuelve la respuesta como string.
+
+    Args:
+        contexto: Filas relevantes devueltas por rag_service.buscar_contexto().
+        pregunta: Pregunta original del usuario.
+
+    Returns:
+        Texto de respuesta del modelo, o un mensaje de error descriptivo.
+    """
+    prompt = _construir_prompt(contexto, pregunta)
+    return _llamar_ollama(prompt)
+
+
+# ── Lógica interna ─────────────────────────────────────────────────────────────
+
+def _construir_prompt(contexto: str, pregunta: str) -> str:
+    return f"""Eres un asistente que responde preguntas sobre un documento Excel.
+
+FILAS MÁS RELEVANTES A LA PREGUNTA:
+{contexto}
+
+Pregunta: {pregunta}
+
+Responde de forma concisa basándote únicamente en las filas proporcionadas.
+Si la información no es suficiente para responder, indícalo claramente."""
+
+
+def _llamar_ollama(prompt: str) -> str:
+    try:
+        res = requests.post(
+            f"{OLLAMA_URL}/api/generate",
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False,
+            },
+            timeout=1800,
+        )
+        res.raise_for_status()
+        return res.json().get("response", "Sin respuesta del modelo.")
+    except requests.exceptions.ConnectionError:
+        return "Error: no se pudo conectar con Ollama. Verifica que esté corriendo."
+    except requests.exceptions.Timeout:
+        return "Error: Ollama tardó demasiado en responder."
+    except requests.exceptions.HTTPError as e:
+        return f"Error HTTP al llamar a Ollama: {e}"
+
+
+
+rag_services.py es:
+
+import faiss
+import numpy as np
+from sentence_transformers import SentenceTransformer
+
+from .excel_service import get_fragmentos
+
+# ── Configuración ──────────────────────────────────────────────────────────────
+
+EMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+
+# ── Estado interno ─────────────────────────────────────────────────────────────
+
+_embedder: SentenceTransformer | None = None
+_index: faiss.IndexFlatL2 | None = None
+
+
+# ── Inicialización ─────────────────────────────────────────────────────────────
+
+def inicializar() -> None:
+    """
+    Carga el modelo de embeddings y construye el índice FAISS
+    a partir de los fragmentos del excel_service.
+    Llamar después de excel_service.cargar_excel().
+    """
+    global _embedder, _index
+
+    print("Cargando modelo de embeddings...")
+    _embedder = SentenceTransformer(EMBED_MODEL)
+
+    construir_indice()
+
+
+def construir_indice() -> None:
+    """
+    (Re)construye el índice FAISS con los fragmentos actuales.
+    Llamar cada vez que se suba un nuevo Excel.
+    """
+    global _index
+
+    fragmentos = get_fragmentos()
+    if not fragmentos:
+        raise ValueError("No hay fragmentos disponibles. Carga un Excel primero.")
+
+    print(f"Vectorizando {len(fragmentos)} filas...")
+    vectores = _embedder.encode(fragmentos, show_progress_bar=True)
+    vectores = np.array(vectores, dtype="float32")
+
+    dimension = vectores.shape[1]
+    _index = faiss.IndexFlatL2(dimension)
+    _index.add(vectores)
+    print("Índice FAISS listo ✓")
+
+
+# ── Búsqueda ───────────────────────────────────────────────────────────────────
+
+def buscar_contexto(pregunta: str, top_k: int = 5) -> str:
+    """
+    Busca las filas más relevantes a la pregunta y las devuelve
+    como un bloque de texto listo para incluir en el prompt.
+    """
+    if _index is None or _embedder is None:
+        raise RuntimeError("El servicio RAG no ha sido inicializado.")
+
+    vec = _embedder.encode([pregunta]).astype("float32")
+    _, indices = _index.search(vec, top_k)
+
+    fragmentos = get_fragmentos()
+    return "\n".join([fragmentos[i] for i in indices[0]])
+
+
+
+
+
+
+
+Dockerfile es:
+
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+EXPOSE 5000
+CMD ["python", "app.py"]
+
+
+docker-compose.yml es:
+
+version: "3.8"
+services:
+  rag-excel:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./datos.xlsx:/app/datos.xlsx   # monta tu Excel sin reconstruir
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # para llegar a Ollama en el host
+    restart: unless-stopped
+

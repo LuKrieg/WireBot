@@ -7,12 +7,15 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "backend": "cd backend && docker-compose up --build -d",
+    "backend:down": "cd backend && docker-compose down"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.4",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
+    "react-markdown": "^10.1.0",
     "tailwindcss": "^4.2.4"
   },
   "devDependencies": {

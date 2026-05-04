@@ -18,9 +18,9 @@ export default function App() {
   if (!session) {
     return (
       <Login
-        onSuccess={(username) => {
+        onSuccess={(username, token) => {
           const isAdmin = username.toLowerCase() === 'admin'
-          setSession({ role: isAdmin ? 'admin' : 'user' })
+          setSession({ role: isAdmin ? 'admin' : 'user', token })
           setAdminScreen('dashboard')
         }}
       />
@@ -34,6 +34,7 @@ export default function App() {
           <AdminChat
             onBack={() => setAdminScreen('dashboard')}
             onLogout={handleLogout}
+            token={session.token}
           />
         )
       case 'userManagement':
@@ -60,5 +61,5 @@ export default function App() {
     }
   }
 
-  return <Chat onLogout={handleLogout} />
+  return <Chat onLogout={handleLogout} token={session.token} />
 }

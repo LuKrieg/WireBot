@@ -1,0 +1,11 @@
+version: "3.8"
+services:
+  rag-excel:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./datos.xlsx:/app/datos.xlsx   # monta tu Excel sin reconstruir
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # para llegar a Ollama en el host
+    restart: unless-stopped

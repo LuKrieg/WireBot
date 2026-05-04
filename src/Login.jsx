@@ -26,8 +26,42 @@ export default function Login({ onSuccess }) {
     setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
   }
 
-  const handleAcceder = () => {
-    onSuccess?.(username.trim())
+  const handleAcceder = async () => {
+    const code = username.trim() || 'default_user'
+    let token = null
+    
+    try {
+      let res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      })
+      
+      if (!res.ok) {
+        // If login fails, try to register
+        await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        })
+        
+        // Then login again to get the token
+        res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        })
+      }
+      
+      if (res.ok) {
+        const data = await res.json()
+        token = data.token
+      }
+    } catch (error) {
+      console.error('Error connecting to backend:', error)
+    }
+
+    onSuccess?.(code, token)
   }
 
   return (

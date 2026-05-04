@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+
+  # ── Backend Flask ────────────────────────────────────────────────────────────
+  backend:
+    build: .
+    container_name: rag-backend
+    ports:
+      - "5005:5000"
+    volumes:
+      - ./uploads:/app/uploads        # Excel persistente entre reinicios
+    environment:
+      SECRET_KEY: "${SECRET_KEY:-dev-secret-key-cambiar-en-produccion}"
+      OLLAMA_URL: "http://host.docker.internal:11434"
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-llama3}"
+      UPLOAD_FOLDER: "/app/uploads"
+      # Permite llamadas desde el frontend en dev y en prod
+      CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://frontend:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # Ollama corriendo en el host
+    restart: unless-stopped
+
+  # ── Frontend React/Vite ──────────────────────────────────────────────────────
+  # Descomenta este bloque cuando tengas el Dockerfile del frontend listo.
+  #
+  # frontend:
+  #   build: ./frontend
+  #   container_name: rag-frontend
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     VITE_API_URL: "http://localhost:5000"   # URL que ve el navegador
+  #   depends_on:
+  #     - backend
+  #   restart: unless-stopped

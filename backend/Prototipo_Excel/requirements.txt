@@ -1,0 +1,7 @@
+flask
+pandas
+openpyxl
+faiss-cpu
+sentence-transformers
+requests
+flask-cors
