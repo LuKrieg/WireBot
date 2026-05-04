@@ -149,8 +149,13 @@ export default function Chat({ onLogout }) {
             }
           }}
         />
-        <button type="button" className="send-button" onClick={sendMessage}>
-          Enviar
+        <button
+          type="button"
+          className="send-button"
+          onClick={sendMessage}
+          aria-label="Enviar mensaje"
+        >
+          <img src="/send.png" alt="" aria-hidden="true" />
         </button>
       </section>
     </main>
