@@ -1,4 +1,6 @@
+import re
 import pandas as pd
+import logging
 
 
 # ── Estado interno del servicio ────────────────────────────────────────────────
@@ -7,6 +9,7 @@ import pandas as pd
 _df: pd.DataFrame = pd.DataFrame()
 _fragmentos: list[str] = []
 _resumen: dict = {}
+logger = logging.getLogger(__name__)
 
 
 # ── Carga ──────────────────────────────────────────────────────────────────────
@@ -20,8 +23,10 @@ def cargar_excel(path: str) -> None:
     global _df, _fragmentos, _resumen
 
     _df = pd.read_excel(path)
+    _df = _reordenar_columnas_equipo_primero(_df)
     _fragmentos = _df.apply(_fila_a_texto, axis=1).tolist()
     _resumen = _generar_resumen(_df)
+    logger.info("event=excel_loaded path=%s rows=%s columns=%s", path, len(_df), len(_df.columns))
 
 
 # ── Acceso a datos ─────────────────────────────────────────────────────────────
@@ -41,7 +46,43 @@ def get_dataframe() -> pd.DataFrame:
     return _df
 
 
+def buscar_fragmentos_por_subcadenas(subcadenas: list[str], max_resultados: int) -> list[str]:
+    """
+    Filas (fragmentos) donde aparece cualquiera de las subcadenas (sin distinguir mayúsculas).
+    Recorre el Excel en el orden de filas cargadas. Útil para listados (“todas las trefiladoras”),
+    no para ranking semántico.
+    """
+    if not subcadenas or max_resultados <= 0:
+        return []
+    subs = [s.lower() for s in subcadenas if s and len(s) >= 3]
+    if not subs:
+        return []
+    salida: list[str] = []
+    for frag in _fragmentos:
+        fl = frag.lower()
+        if any(s in fl for s in subs):
+            salida.append(frag)
+            if len(salida) >= max_resultados:
+                break
+    return salida
+
+
 # ── Lógica interna ─────────────────────────────────────────────────────────────
+
+_COL_PRIORIDAD = re.compile(
+    r"(?i)equipo|máquina|maquina|activo|l[ií]nea|tag|ubic|descrip|detalle|"
+    r"falla|paro|area|área|proceso|id\b|c[oó]digo|codigo|referencia|trefil|stn"
+)
+
+
+def _reordenar_columnas_equipo_primero(df: pd.DataFrame) -> pd.DataFrame:
+    """Pone al frente columnas que suelen traer nombre/código de máquina (mejor RAG y lectura LLM)."""
+    cols = list(df.columns)
+    pri = [c for c in cols if _COL_PRIORIDAD.search(str(c))]
+    resto = [c for c in cols if c not in pri]
+    orden = pri + resto
+    return df[orden]
+
 
 def _fila_a_texto(row) -> str:
     """Convierte una fila del DataFrame en una cadena legible: 'col1: val1 | col2: val2'."""

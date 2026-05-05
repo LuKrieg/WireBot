@@ -81,4 +81,4 @@ def _generar_resumen(df: pd.DataFrame) -> dict:
 
     return resumen
 
-cargar_excel("/home/enrique/Escritorio/Key/2026/Reto/Prototipo Excel/datos.xlsx")
+cargar_excel("/home/enrique/Escritorio/Key/2026/Reto/Prototipo Excel/datos_enerwire.xlsx")

@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify
 from app.services.rag_service import buscar_contexto
 from app.services.ollama_service import preguntar
 
+# Ruta legacy: usar backend/app/routes/chat.py para runtime principal.
+
 chat_bp = Blueprint("chat", __name__)
 
 

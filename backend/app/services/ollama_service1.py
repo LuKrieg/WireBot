@@ -2,6 +2,8 @@ import requests
 
 # ── Configuración ──────────────────────────────────────────────────────────────
 
+# Servicio legacy: usar backend/app/services/ollama_service.py en runtime principal.
+
 OLLAMA_URL = "http://host.docker.internal:11434"
 OLLAMA_MODEL = "llama3"
 

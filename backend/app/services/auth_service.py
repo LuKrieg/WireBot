@@ -33,7 +33,7 @@ def generate_token(user):
     payload = {
         "user_id": user.id,
         "code": user.code,
-        "exp": datetime.utcnow() + timedelta(hours=8)
+        "exp": datetime.utcnow() + timedelta(hours=Config.JWT_EXPIRATION_HOURS)
     }
 
     token = jwt.encode(payload, Config.SECRET_KEY, algorithm="HS256")

@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify
 from services.excel_service import get_resumen
 
+# Ruta legacy: usar backend/app/routes/stats.py para runtime principal.
+
 stats_bp = Blueprint("stats", __name__)
 
 

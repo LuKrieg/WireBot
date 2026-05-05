@@ -3,6 +3,8 @@ from flask import Blueprint, request, jsonify, current_app
 from app.services.excel_service import cargar_excel
 from app.services.rag_service import construir_indice
 
+# Ruta legacy: usar backend/app/routes/upload.py para runtime principal.
+
 upload_bp = Blueprint("upload", __name__)
 
 
@@ -27,7 +29,7 @@ def upload():
     # Guarda el archivo en la carpeta de uploads
     upload_folder = current_app.config["UPLOAD_FOLDER"]
     os.makedirs(upload_folder, exist_ok=True)
-    dest = os.path.join(upload_folder, "datos.xlsx")
+    dest = os.path.join(upload_folder, "datos_enerwire.xlsx")
     file.save(dest)
 
     # Recarga Excel y reconstruye el índice FAISS

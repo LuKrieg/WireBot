@@ -1,12 +1,14 @@
 # app/routes/upload.py
 
 import os
+import logging
 from flask import Blueprint, request, jsonify, current_app
 from app.services.excel_service import cargar_excel
 from app.services.rag_service import inicializar
 from app.middleware.auth_guard import require_auth
 
 upload_bp = Blueprint("upload", __name__)
+logger = logging.getLogger(__name__)
 
 
 def _extension_permitida(filename: str) -> bool:
@@ -30,13 +32,16 @@ def upload():
 
     upload_folder = current_app.config["UPLOAD_FOLDER"]
     os.makedirs(upload_folder, exist_ok=True)
-    dest = os.path.join(upload_folder, "datos.xlsx")
+    dest = os.path.join(upload_folder, "datos_enerwire.xlsx")
     file.save(dest)
+    logger.info("event=upload_saved path=%s", dest)
 
     try:
         cargar_excel(dest)
         inicializar()
+        logger.info("event=upload_processed path=%s", dest)
     except Exception as e:
+        logger.exception("event=upload_process_failed")
         return jsonify({"error": f"Error al procesar el archivo: {str(e)}"}), 500
 
     return jsonify({"mensaje": "Archivo cargado correctamente.", "path": dest})

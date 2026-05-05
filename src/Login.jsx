@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import './App.css'
+import { apiRequest } from './apiClient.js'
 
 const STORAGE_KEY = 'wirebot-theme'
 
@@ -16,6 +17,7 @@ function getInitialTheme() {
 export default function Login({ onSuccess }) {
   const [theme, setTheme] = useState(getInitialTheme)
   const [username, setUsername] = useState('')
+  const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -29,38 +31,39 @@ export default function Login({ onSuccess }) {
   const handleAcceder = async () => {
     const code = username.trim() || 'default_user'
     let token = null
+    setErrorMessage('')
     
     try {
-      let res = await fetch('/api/login', {
+      let result = await apiRequest('/api/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code })
       })
       
-      if (!res.ok) {
+      if (!result.ok) {
         // If login fails, try to register
-        await fetch('/api/register', {
+        await apiRequest('/api/register', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code })
         })
         
         // Then login again to get the token
-        res = await fetch('/api/login', {
+        result = await apiRequest('/api/login', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code })
         })
       }
       
-      if (res.ok) {
-        const data = await res.json()
-        token = data.token
+      if (result.ok) {
+        token = result.data.token
+      } else {
+        setErrorMessage(result.errorMessage || 'No fue posible iniciar sesión.')
       }
     } catch (error) {
       console.error('Error connecting to backend:', error)
+      setErrorMessage('Error de conexión con el backend.')
     }
 
+    if (!token) return
     onSuccess?.(code, token)
   }
 
@@ -91,6 +94,7 @@ export default function Login({ onSuccess }) {
         <button type="button" className="login-submit-button" onClick={handleAcceder}>
           Acceder
         </button>
+        {errorMessage && <p className="login-error-message">{errorMessage}</p>}
       </section>
     </main>
   )

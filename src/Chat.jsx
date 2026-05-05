@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import './App.css'
+import { apiRequest } from './apiClient.js'
 
 const STORAGE_KEY = 'wirebot-theme'
 
@@ -40,34 +41,31 @@ export default function Chat({ onLogout, token }) {
     setIsLoading(true)
 
     try {
-      const res = await fetch('/api/chat', {
+      const result = await apiRequest('/api/chat', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ pregunta: text })
       })
 
-      if (res.ok) {
-        const data = await res.json()
+      if (result.ok) {
         const otherId = `${Date.now()}-other`
         setMessages((current) => [
           ...current,
           {
             id: otherId,
             from: 'other',
-            text: data.respuesta || 'Sin respuesta',
+            text: result.data.respuesta || 'Sin respuesta',
           },
         ])
       } else {
-        const err = await res.json()
         setMessages((current) => [
           ...current,
           {
             id: `${Date.now()}-err`,
             from: 'other',
-            text: `**Error**: ${err.error || 'Ocurrió un problema con el servidor.'}`,
+            text: `**Error**: ${result.errorMessage}`,
           },
         ])
       }

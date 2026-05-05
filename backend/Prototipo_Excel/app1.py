@@ -5,12 +5,15 @@ import requests
 from flask import Flask, request, jsonify
 from sentence_transformers import SentenceTransformer
 
+# Archivo legacy para referencia/prototipo.
+# Backend oficial: backend/run.py + backend/app/
+
 app = Flask(__name__)
 
 # ── Configuración ──────────────────────────────────────────
 OLLAMA_URL = "http://host.docker.internal:11434"
 OLLAMA_MODEL = "llama3"
-EXCEL_PATH = "datos.xlsx"
+EXCEL_PATH = "datos_enerwire.xlsx"
 EMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
 # ── Carga y vectorización del Excel ───────────────────────
@@ -81,14 +84,17 @@ def chat():
     contexto = buscar_contexto(pregunta)
 
     # Prompt limpio, sin resumen_global
-    prompt = f"""Eres un asistente que responde preguntas sobre un documento Excel.
+    prompt = f"""Eres un asistente especializado de la empresa Enerwire.
+Tu objetivo es responder preguntas sobre los mantenimientos, fallas y datos técnicos de máquinas y equipos de Enerwire, basándote en los datos extraídos del archivo oficial 'datos_enerwire.xlsx'.
 
-FILAS MÁS RELEVANTES A LA PREGUNTA:
+FILAS DE DATOS MÁS RELEVANTES (MÁQUINAS Y EQUIPOS DE ENERWIRE):
 {contexto}
 
-Pregunta: {pregunta}
+Pregunta del usuario: {pregunta}
 
-Responde de forma concisa basándote únicamente en las filas proporcionadas."""
+Instrucciones importantes:
+1. Responde de forma concisa basándote ÚNICAMENTE en las filas proporcionadas arriba.
+2. NUNCA inventes información ni menciones productos como "laptops" o inventario general si no está en el contexto. El enfoque es estrictamente sobre maquinaria de Enerwire."""
 
     respuesta = preguntar_ollama(prompt)
     return jsonify({"respuesta": respuesta, "contexto_usado": contexto})
